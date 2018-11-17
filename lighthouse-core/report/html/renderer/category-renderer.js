@@ -182,7 +182,7 @@ class CategoryRenderer {
    * Renders the group container for a group of audits. Individual audit elements can be added
    * directly to the returned element.
    * @param {LH.Result.ReportGroup} group
-   * @param {{expandable: boolean, itemCount?: number}} opts
+   * @param {{expandable: boolean, open?: boolean, itemCount?: number}} opts
    * @return {Element}
    */
   renderAuditGroup(group, opts) {
@@ -195,6 +195,8 @@ class CategoryRenderer {
     if (expandable) {
       const chevronEl = summaryInnerEl.appendChild(this._createChevron());
       chevronEl.title = Util.UIStrings.auditGroupExpandTooltip;
+
+      /** @type {HTMLDetailsElement} */ (groupEl).open = !!opts.open;
     }
 
     if (group.description) {
@@ -216,7 +218,7 @@ class CategoryRenderer {
    * array of audit and audit-group elements.
    * @param {Array<LH.ReportResult.AuditRef>} auditRefs
    * @param {Object<string, LH.Result.ReportGroup>} groupDefinitions
-   * @param {{expandable: boolean}} opts
+   * @param {{expandable: boolean, open?: boolean}} opts
    * @return {Array<Element>}
    */
   _renderGroupedAudits(auditRefs, groupDefinitions, opts) {
@@ -304,14 +306,14 @@ class CategoryRenderer {
       return failedElem;
     }
 
-    const expandable = true;
-    const elements = this._renderGroupedAudits(auditRefs, groupDefinitions, {expandable});
+    const opts = {expandable: true, open: true};
+    const elements = this._renderGroupedAudits(auditRefs, groupDefinitions, opts);
 
     const clumpInfo = this._clumpDisplayInfo[clumpId];
     // TODO: renderAuditGroup shouldn't be used to render a clump (since it *contains* audit groups).
     const groupDef = {title: clumpInfo.title, description};
-    const opts = {expandable, itemCount: auditRefs.length};
-    const clumpElem = this.renderAuditGroup(groupDef, opts);
+    const clumpOpts = {expandable: true, itemCount: auditRefs.length};
+    const clumpElem = this.renderAuditGroup(groupDef, clumpOpts);
     clumpElem.classList.add('lh-clump', clumpInfo.className);
 
     elements.forEach(elem => clumpElem.appendChild(elem));
