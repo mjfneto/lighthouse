@@ -63,8 +63,9 @@ module.exports = [
       'critical-request-chains': {
         scoreDisplayMode: 'not-applicable',
       },
-      'webapp-install-banner': {
+      'installable-manifest': {
         score: 0,
+        explanation: 'Failures: No manifest was fetched.',
       },
       'splash-screen': {
         score: 0,
@@ -124,7 +125,7 @@ module.exports = [
       'critical-request-chains': {
         scoreDisplayMode: 'not-applicable',
       },
-      'webapp-install-banner': {
+      'installable-manifest': {
         score: 1,
       },
       'splash-screen': {

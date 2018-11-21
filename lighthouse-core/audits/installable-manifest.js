@@ -5,12 +5,11 @@
  */
 'use strict';
 
-const MultiCheckAudit = require('./multi-check-audit');
 const ManifestValues = require('../computed/manifest-values.js');
 
 /**
  * @fileoverview
- * Audits if a page is configured to prompt users with the webapp install banner.
+ * Audits if the page's web app manifest qualifies for triggering a beforeinstallprompt event.
  * https://github.com/GoogleChrome/lighthouse/issues/23#issuecomment-270453303
  *
  * Requirements:
@@ -20,27 +19,21 @@ const ManifestValues = require('../computed/manifest-values.js');
  *   * manifest has a valid shortname
  *   * manifest display property is standalone, minimal-ui, or fullscreen
  *   * manifest contains icon that's a png and size >= 192px
- *   * SW is registered, and it owns this page and the manifest's start url
- *   * Site engagement score of 2 or higher
-
- * This audit covers these requirements with the following exceptions:
- *   * it doesn't consider SW controlling the starturl
- *   * it doesn't consider the site engagement score (naturally)
  */
 
-class WebappInstallBanner extends MultiCheckAudit {
+class InstallableManifest {
   /**
    * @return {LH.Audit.Meta}
    */
   static get meta() {
     return {
-      id: 'webapp-install-banner',
-      title: 'User can be prompted to Install the Web App',
-      failureTitle: 'User will not be prompted to Install the Web App',
+      id: 'installable-manifest',
+      title: 'Web app manifest meets the installability requirements',
+      failureTitle: 'Web app manifest does not meet the installability requirements',
       description: 'Browsers can proactively prompt users to add your app to their homescreen, ' +
           'which can lead to higher engagement. ' +
           '[Learn more](https://developers.google.com/web/tools/lighthouse/audits/install-prompt).',
-      requiredArtifacts: ['URL', 'ServiceWorker', 'Manifest'],
+      requiredArtifacts: ['URL', 'Manifest'],
     };
   }
 
@@ -48,13 +41,7 @@ class WebappInstallBanner extends MultiCheckAudit {
    * @param {LH.Artifacts.ManifestValues} manifestValues
    * @return {Array<string>}
    */
-  static assessManifest(manifestValues) {
-    if (manifestValues.isParseFailure && manifestValues.parseFailureReason) {
-      return [manifestValues.parseFailureReason];
-    }
-
-    /** @type {Array<string>} */
-    const failures = [];
+  static getManifestFailures(manifestValues) {
     const bannerCheckIds = [
       'hasName',
       // Technically shortname isn't required (if name is defined):
@@ -68,33 +55,56 @@ class WebappInstallBanner extends MultiCheckAudit {
       'hasPWADisplayValue',
       'hasIconsAtLeast192px',
     ];
-    manifestValues.allChecks
-      .filter(item => bannerCheckIds.includes(item.id))
-      .forEach(item => {
-        if (!item.passing) {
-          failures.push(item.failureText);
-        }
-      });
 
-    return failures;
+    return manifestValues.allChecks
+      .filter(check => bannerCheckIds.includes(check.id) && !check.passing)
+      .map(check => check.failureText);
+  }
+
+  /**
+   * @param {LH.Artifacts.ManifestValues} manifestValues
+   * @return {Record<LH.Artifacts.ManifestValueCheckID, boolean>}
+   */
+  static getManifestChecks(manifestValues) {
+    const checks = /** @type {Record<LH.Artifacts.ManifestValueCheckID, boolean>} */ ({});
+    manifestValues.allChecks.forEach(check => {
+      checks[check.id] = check.passing;
+    });
+    return checks;
   }
 
   /**
    * @param {LH.Artifacts} artifacts
    * @param {LH.Audit.Context} context
-   * @return {Promise<{failures: Array<string>, manifestValues: LH.Artifacts.ManifestValues}>}
+   * @return {Promise<LH.Audit.Product>}
    */
-  static async audit_(artifacts, context) {
+  static async audit(artifacts, context) {
     const manifestValues = await ManifestValues.request(artifacts.Manifest, context);
-    const manifestFailures = WebappInstallBanner.assessManifest(manifestValues);
+    const failures = InstallableManifest.getManifestFailures(manifestValues);
+
+    if (manifestValues.isParseFailure) {
+      failures.push(manifestValues.parseFailureReason);
+    }
+
+    const checks = this.getManifestChecks(manifestValues);
+    const details = {items: [{
+      failures,
+      ...checks,
+    }]};
+
+    if (failures.length > 0) {
+      return {
+        rawValue: false,
+        explanation: `Failures: ${failures.join(',\n')}.`,
+        details,
+      };
+    }
 
     return {
-      failures: [
-        ...manifestFailures,
-      ],
-      manifestValues,
+      rawValue: true,
+      details,
     };
   }
 }
 
-module.exports = WebappInstallBanner;
+module.exports = InstallableManifest;
